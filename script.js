@@ -1,11 +1,26 @@
-// Enhanced Museum Experience with Advanced Auto-Tour
+// Complete Fixed JavaScript
 document.addEventListener('DOMContentLoaded', function() {
-  // Initialize all components
   class VirtualMuseum {
     constructor() {
+        this.audio = null;
+this.isPlaying = false;
+this.audioProgressInterval = null;
+
       this.currentArtifact = null;
       this.currentArtifactId = null;
       this.audio = null;
+      this.ambientAudio = null;
+       this.zoomLevel = 1;
+  this.MIN_ZOOM = 1;
+  this.MAX_ZOOM = 2;
+
+this.ambientTracks = {
+  ancient: document.getElementById('ambientAncient'),
+  medieval: document.getElementById('ambientMedieval'),
+  modern: document.getElementById('ambientModern'),
+  futuristic: document.getElementById('ambientFuturistic')
+};
+
       this.isPlaying = false;
       this.viewedArtifacts = new Set();
       this.artifacts = [];
@@ -16,24 +31,84 @@ document.addEventListener('DOMContentLoaded', function() {
         mode: 'sequential',
         speed: 1,
         steps: [],
-        interval: null,
-        data: this.getTourData()
+        interval: null
       };
-      this.isFullscreen = false;
-      this.guideVisible = true;
+      this.heroSubtitles = [
+  'Explore Ancient Civilizations in 3D',
+  'Touch History • Rotate • Interact',
+  'Experience the Future of Museums',
+  'Walk Through Time Without Limits'
+];
+this.currentSubtitleIndex = 0;
+
+      this.musicPlaying = false;
+      
       this.initialize();
+      
     }
 
-    async initialize() {
-      this.setupElements();
-      this.setupEventListeners();
-      await this.simulateLoading();
-      this.showGuide();
-      this.loadProgress();
-      this.setupBackgroundMusic();
-      this.createParticles();
-      this.setupHotspots();
-    }
+   async initialize() {
+  localStorage.removeItem('museumTheme');
+document.body.classList.add('theme-all');
+
+  this.setupElements();
+  this.initBubbleBackground();   // ⭐ ADD HERE
+  this.setupEventListeners();
+  await this.simulateLoading();
+  this.loadProgress();
+  
+  setTimeout(() => this.showVirtualGuide(), 1500);
+  this.startHeroSubtitleRotation();
+this.animateHero();
+this.bindLibraryButton();
+this.updateLibraryButton();
+this.bindDetailSaveButton();
+this.bindAdvancedSearch();
+this.bindSearchSuggestions();
+this.bindPrintButton();
+this.bindARButtons();
+  this.bindAROverlayControls();
+
+
+}
+applyZoom() {
+  if (!this.currentArtifact) return;
+
+  this.currentArtifact.style.transform =
+    `scale(${this.zoomLevel})`;
+}
+
+bindZoomButtons() {
+  const zoomInBtn = document.getElementById('zoomInBtn');
+  const zoomOutBtn = document.getElementById('zoomOutBtn');
+
+  if (!zoomInBtn || !zoomOutBtn) return;
+
+  zoomInBtn.addEventListener('click', () => {
+    if (!this.currentArtifact) return;
+
+    this.zoomLevel = Math.min(
+      this.zoomLevel + 0.1,
+      this.MAX_ZOOM
+    );
+
+    this.applyZoom();
+  });
+
+  zoomOutBtn.addEventListener('click', () => {
+    if (!this.currentArtifact) return;
+
+    this.zoomLevel = Math.max(
+      this.zoomLevel - 0.1,
+      this.MIN_ZOOM
+    );
+
+    this.applyZoom();
+  });
+}
+
+
+
 
     setupElements() {
       this.elements = {
@@ -45,40 +120,450 @@ document.addEventListener('DOMContentLoaded', function() {
         notification: document.getElementById('notification'),
         notificationText: document.getElementById('notificationText'),
         backgroundMusic: document.getElementById('backgroundMusic'),
-        musicBtn: document.getElementById('musicBtn'),
-        themeBtn: document.getElementById('themeBtn'),
-        tourBtn: document.getElementById('tourBtn')
+        tourBtn: document.getElementById('tourBtn'),
+        fullscreen3DOverlay: document.getElementById('fullscreen3DOverlay'),
+        arOverlay: document.getElementById('arOverlay')
       };
 
       this.collectArtifacts();
+
     }
 
     collectArtifacts() {
       this.artifacts = Array.from(document.querySelectorAll('.artifact-card'));
       this.artifacts.forEach(artifact => {
-        this.setupArtifactHover(artifact);
-        artifact.addEventListener('click', (e) => this.handleArtifactClick(e, artifact));
+        this.setupArtifactInteractions(artifact);
       });
     }
+    playAmbient(era) {
+  if (!this.ambientTracks[era]) return;
 
-    setupArtifactHover(artifact) {
+  // stop current ambient
+  if (this.ambientAudio) {
+    this.fadeOutAudio(this.ambientAudio);
+  }
+
+  const audio = this.ambientTracks[era];
+  audio.volume = 0;
+  audio.play().catch(() => {});
+  this.fadeInAudio(audio, 0.08); // VERY low volume
+
+  this.ambientAudio = audio;
+}
+
+fadeInAudio(audio, targetVolume) {
+  let vol = 0;
+  const interval = setInterval(() => {
+    vol += 0.01;
+    if (vol >= targetVolume) {
+      audio.volume = targetVolume;
+      clearInterval(interval);
+    } else {
+      audio.volume = vol;
+    }
+  }, 80);
+}
+
+fadeOutAudio(audio) {
+  let vol = audio.volume;
+  const interval = setInterval(() => {
+    vol -= 0.01;
+    if (vol <= 0) {
+      audio.pause();
+      audio.currentTime = 0;
+      clearInterval(interval);
+    } else {
+      audio.volume = vol;
+    }
+  }, 80);
+}
+getLibrary() {
+  return JSON.parse(localStorage.getItem('museumLibrary')) || [];
+}
+
+saveToLibrary(id) {
+  const library = this.getLibrary();
+  if (!library.includes(id)) {
+    library.push(id);
+    localStorage.setItem('museumLibrary', JSON.stringify(library));
+    this.showSaveToast();
+    this.updateLibraryButton();
+  }
+}
+
+showSaveToast() {
+  const toast = document.getElementById('saveToast');
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2000);
+}
+updateLibraryButton() {
+  const btn = document.getElementById('libraryBtn');
+  const library = this.getLibrary();
+  btn.classList.toggle('hidden', library.length === 0);
+}
+bindLibraryButton() {
+  const btn = document.getElementById('libraryBtn');
+  const section = document.getElementById('librarySection');
+  const closeBtn = document.getElementById('closeLibraryBtn');
+
+  btn.addEventListener('click', () => {
+    this.renderLibrary();
+    section.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  });
+
+  closeBtn.addEventListener('click', () => {
+    section.classList.remove('active');
+    document.body.style.overflow = '';
+  });
+}
+renderLibrary() {
+  const grid = document.getElementById('libraryGrid');
+  const emptyText = document.getElementById('libraryEmpty');
+  const library = this.getLibrary().map(String);
+
+  grid.innerHTML = '';
+
+  // Empty state
+  if (library.length === 0) {
+    emptyText.style.display = 'block';
+    return;
+  }
+  emptyText.style.display = 'none';
+
+  library.forEach(id => {
+    // Always use original artifact for data
+    const original = document.querySelector(`.artifact-card[data-id="${id}"]`);
+    if (!original) return;
+
+    // Clone visual card
+    const clone = original.cloneNode(true);
+    clone.classList.add('library-card');
+
+    // Remove duplicate IDs inside clone
+    clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+
+    /* ---------------------------------
+       MODIFY ACTION BUTTONS (KEY PART)
+    --------------------------------- */
+    const actions = clone.querySelector('.artifact-actions');
+    if (!actions) return;
+
+    // ❌ Remove buttons not needed in Library
+    actions.querySelector('.view-3d')?.remove();
+    actions.querySelector('.explore-btn')?.remove();
+    actions.querySelector('.save-btn')?.remove();
+
+    // ✅ Add DETAILS button
+    const detailsBtn = document.createElement('button');
+    detailsBtn.className = 'action-btn details-btn';
+    detailsBtn.innerHTML = '<i class="fas fa-info-circle"></i> Details';
+
+   detailsBtn.addEventListener('click', e => {
+  e.preventDefault();
+  e.stopPropagation();
+
+  this.closeLibrary();   // ✅ CLOSE LIBRARY
+  this.openDetails(id); // ✅ OPEN DETAILS
+});
+
+
+    // ✅ Add DELETE button
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'action-btn delete-btn';
+    deleteBtn.innerHTML = '<i class="fas fa-trash"></i> Delete';
+
+    deleteBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      this.removeFromLibrary(id);
+    });
+
+    // Add buttons to actions row
+    actions.appendChild(detailsBtn);
+    actions.appendChild(deleteBtn);
+
+    /* ---------------------------------
+       Add LIBRARY badge
+    --------------------------------- */
+    const overlay = clone.querySelector('.artifact-overlay');
+    if (overlay) {
+      const badge = document.createElement('div');
+      badge.className = 'era-badge';
+      badge.textContent = 'Library';
+      overlay.appendChild(badge);
+    }
+
+    grid.appendChild(clone);
+  });
+}
+
+bindAdvancedSearch() {
+  const input = document.getElementById('advancedSearchInput');
+  const era = document.getElementById('searchEra');
+  const category = document.getElementById('searchCategory');
+
+  const applySearch = () => {
+    const query = input.value.trim().toLowerCase();
+    const eraFilter = era.value.toLowerCase();
+    const catFilter = category.value.toLowerCase();
+
+    let exactMatches = [];
+    let startMatches = [];
+    let relatedMatches = [];
+
+    this.artifacts.forEach(card => {
+      const title = card.dataset.title.toLowerCase();
+      const desc = card.dataset.desc.toLowerCase();
+      const loc = card.dataset.location.toLowerCase();
+      const eraVal = card.dataset.category.toLowerCase();
+
+      const eraOk = !eraFilter || eraVal === eraFilter;
+      const catOk = !catFilter || eraVal === catFilter;
+
+      if (!eraOk || !catOk) return;
+
+      if (query && title === query) {
+        exactMatches.push(card);
+      } else if (query && title.startsWith(query)) {
+        startMatches.push(card);
+      } else if (
+        !query ||
+        title.includes(query) ||
+        desc.includes(query) ||
+        loc.includes(query)
+      ) {
+        relatedMatches.push(card);
+      }
+    });
+
+    // 🔥 PRIORITY DISPLAY LOGIC
+    this.artifacts.forEach(card => (card.style.display = 'none'));
+
+    if (exactMatches.length > 0) {
+      exactMatches.forEach(c => (c.style.display = ''));
+    } else if (startMatches.length > 0) {
+      startMatches.forEach(c => (c.style.display = ''));
+    } else {
+      relatedMatches.forEach(c => (c.style.display = ''));
+    }
+  };
+
+  input.addEventListener('input', applySearch);
+  era.addEventListener('change', applySearch);
+  category.addEventListener('change', applySearch);
+}
+bindSearchSuggestions() {
+  const input = document.getElementById('searchInput');   // navbar
+  const box = document.getElementById('searchSuggestions');
+
+  if (!input || !box) return;
+
+  input.addEventListener('input', () => {
+    const query = input.value.trim().toLowerCase();
+
+    box.innerHTML = '';
+    box.classList.remove('active');
+
+    if (query.length < 2) return; // 🔥 helps UX
+
+    const matches = this.artifacts
+      .filter(card => {
+        const title = card.dataset.title?.toLowerCase() || '';
+        return title.includes(query);
+      })
+      .slice(0, 6);
+
+    if (!matches.length) return;
+
+    matches.forEach(card => {
+      const item = document.createElement('div');
+      item.className = 'suggestion-item';
+
+      item.innerHTML = `
+        <div class="suggestion-title">${card.dataset.title}</div>
+        <div class="suggestion-meta">
+          ${card.dataset.era} • ${card.dataset.location}
+        </div>
+      `;
+
+      item.addEventListener('click', () => {
+        box.classList.remove('active');
+        input.value = card.dataset.title;
+        this.openDetails(card.dataset.id);
+      });
+
+      box.appendChild(item);
+    });
+
+    box.classList.add('active');
+  });
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.search-wrapper')) {
+      box.classList.remove('active');
+    }
+  });
+}
+bindPrintButton() {
+  const btn = document.getElementById('printArtifactBtn');
+  if (!btn) return;
+
+  btn.addEventListener('click', () => {
+    if (!this.currentArtifact) {
+      this.showNotification('No artifact selected', 'Print');
+      return;
+    }
+
+    this.printArtifact();
+  });
+}
+printArtifact() {
+  const artifact = this.currentArtifact;
+
+  const title = artifact.dataset.title;
+  const era = artifact.dataset.era;
+  const location = artifact.dataset.location;
+  const description = artifact.dataset.desc;
+
+  const imgSrc =
+    artifact.querySelector('.artifact-img')?.src || '';
+
+  const specs = {
+    dimensions: document.getElementById('specDimensions')?.textContent,
+    weight: document.getElementById('specWeight')?.textContent,
+    material: document.getElementById('specMaterial')?.textContent,
+    condition: document.getElementById('specCondition')?.textContent
+  };
+
+  // Create print container
+  const printDiv = document.createElement('div');
+  printDiv.className = 'print-area';
+
+  printDiv.innerHTML = `
+    <div class="print-header">
+      <h1>${title}</h1>
+      <div class="print-meta">${era} • ${location}</div>
+    </div>
+
+    <div class="print-image">
+      <img src="${imgSrc}">
+    </div>
+
+    <div class="print-section">
+      <h3>Description</h3>
+      <p>${description}</p>
+    </div>
+
+    <div class="print-section">
+      <h3>Specifications</h3>
+      <div class="print-specs">
+        <div><strong>Dimensions:</strong> ${specs.dimensions}</div>
+        <div><strong>Weight:</strong> ${specs.weight}</div>
+        <div><strong>Material:</strong> ${specs.material}</div>
+        <div><strong>Condition:</strong> ${specs.condition}</div>
+      </div>
+    </div>
+
+    <div style="margin-top:40px;font-size:12px;opacity:0.6;text-align:center">
+      © HeritEdge Museum – Printed Artifact Sheet
+    </div>
+  `;
+
+  document.body.appendChild(printDiv);
+  window.print();
+  document.body.removeChild(printDiv);
+}
+
+
+
+
+
+
+
+removeFromLibrary(id) {
+  let library = this.getLibrary();
+  library = library.filter(item => item !== id);
+
+  localStorage.setItem('museumLibrary', JSON.stringify(library));
+  this.renderLibrary();
+  this.updateLibraryButton();
+
+  this.showNotification('Removed from library', 'Library');
+}
+closeLibrary() {
+  const librarySection = document.getElementById('librarySection');
+  if (!librarySection) return;
+
+  librarySection.classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+
+
+
+setCursorLabel(text) {
+  const label = document.getElementById('cursorLabel');
+  if (!label) return;
+
+  if (text) {
+    label.textContent = text;
+    label.style.opacity = '1';
+    label.style.transform = 'translate(-50%, -50%) scale(1)';
+  } else {
+    label.style.opacity = '0';
+    label.style.transform = 'translate(-50%, -50%) scale(0.8)';
+  }
+}
+
+
+    setupArtifactInteractions(artifact) {
+      // Hover effect for 3D preview
       const media = artifact.querySelector('.artifact-media');
       const img = artifact.querySelector('.artifact-img');
       const modelViewer = artifact.querySelector('.artifact-3d');
 
-      if (!media || !img || !modelViewer) return;
+      if (media && img && modelViewer) {
+        media.addEventListener('mouseenter', () => {
+          setTimeout(() => {
+            img.style.opacity = '0';
+            modelViewer.style.opacity = '1';
+          }, 200);
+        });
 
-      media.addEventListener('mouseenter', () => {
-        setTimeout(() => {
-          img.style.opacity = '0';
-          modelViewer.style.opacity = '1';
-        }, 200);
-      });
+        media.addEventListener('mouseleave', () => {
+          img.style.opacity = '1';
+          modelViewer.style.opacity = '0';
+        });
+      }
 
-      media.addEventListener('mouseleave', () => {
-        img.style.opacity = '1';
-        modelViewer.style.opacity = '0';
-      });
+      // Click handlers
+      artifact.addEventListener('click', (e) => {
+  if (
+    e.target.closest('button') ||
+    e.target.tagName === 'MODEL-VIEWER'
+  ) return;
+
+  this.openDetails(artifact.dataset.id);
+});
+
+
+      // 3D view button
+      const view3dBtn = artifact.querySelector('.view-3d');
+      if (view3dBtn) {
+        view3dBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.openFullscreen3D(artifact);
+        });
+      }
+
+      // Explore button
+      const exploreBtn = artifact.querySelector('.explore-btn');
+      if (exploreBtn) {
+        exploreBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.openDetails(artifact.dataset.id);
+        });
+      }
     }
 
     async simulateLoading() {
@@ -92,7 +577,7 @@ document.addEventListener('DOMContentLoaded', function() {
               this.elements.loadingScreen.style.opacity = '0';
               setTimeout(() => {
                 this.elements.loadingScreen.style.display = 'none';
-                this.showNotification('🚀 Welcome to Future Museum!', 'Welcome');
+                this.showNotification('🚀 Museum ready for exploration!', 'Welcome');
                 resolve();
               }, 500);
             }, 500);
@@ -102,179 +587,250 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     setupEventListeners() {
-      // Theme toggle
-      this.elements.themeBtn.addEventListener('click', () => this.toggleTheme());
-      
-      // Music control
-      this.elements.musicBtn.addEventListener('click', () => this.toggleMusic());
-      
-      // Tour button
+      document.getElementById('virtualMuseumBtn').addEventListener('click', () => {
+  // OPTION 1: Redirect to your 3D walkthrough page
+  window.location.href = "index2.html";
+
+  // OPTION 2 (comment above & use this instead):
+  // window.open("virtual-museum.html", "_blank");
+});
+
+      // Auto tour - FIXED
       this.elements.tourBtn.addEventListener('click', () => this.startAdvancedTour());
       
-      // Navigation view
+      // Navigation view - FIXED
       document.getElementById('gridView').addEventListener('click', () => this.setGridView());
       document.getElementById('listView').addEventListener('click', () => this.setListView());
       
-      // Filter functionality
+      // Filter functionality - FIXED
       document.querySelectorAll('.filter-tag').forEach(tag => {
-        tag.addEventListener('click', (e) => this.filterArtifacts(e.target.dataset.filter, e.target));
-      });
-      
-      // Guide actions
-      document.querySelectorAll('[data-action]').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const action = e.target.closest('[data-action]').dataset.action;
-          this.handleGuideAction(action);
+        tag.addEventListener('click', (e) => {
+          this.filterArtifacts(e.target.dataset.filter, e.target);
         });
       });
-      
-      // Advanced tour controls
-      document.getElementById('tourPlayPause').addEventListener('click', () => this.toggleTourPlayPause());
-      document.getElementById('tourPrev').addEventListener('click', () => this.prevTourStep());
-      document.getElementById('tourNext').addEventListener('click', () => this.nextTourStep());
-      document.getElementById('tourStop').addEventListener('click', () => this.stopTour());
-      
-      // Tour speed controls
+
+      // Virtual Guide buttons - FIXED
+      document.getElementById('startTourBtn').addEventListener('click', () => this.startAdvancedTour());
+      document.getElementById('skipTourBtn').addEventListener('click', () => this.hideVirtualGuide());
+      document.getElementById('customTourBtn').addEventListener('click', () => this.showCustomTourModal());
+
+      // Advanced tour controls - FIXED
+      document.getElementById('tourPlayPauseBtn').addEventListener('click', () => this.toggleTourPlayPause());
+      document.getElementById('tourPrevBtn').addEventListener('click', () => this.prevTourStep());
+      document.getElementById('tourNextBtn').addEventListener('click', () => this.nextTourStep());
+      document.getElementById('tourStopBtn').addEventListener('click', () => this.stopTour());
+      document.getElementById('closeTourControlsBtn').addEventListener('click', () => this.stopTour());
+
+      // Tour speed controls - FIXED
       document.querySelectorAll('.speed-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
           const speed = parseFloat(e.target.dataset.speed);
           this.setTourSpeed(speed);
-          e.target.parentElement.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
           e.target.classList.add('active');
         });
       });
-      
-      // Tour mode
-      document.getElementById('tourMode').addEventListener('change', (e) => {
+
+      // Tour mode - FIXED
+      document.getElementById('tourModeSelect').addEventListener('change', (e) => {
         this.tour.mode = e.target.value;
-        this.prepareTour();
+        if (this.tour.active) {
+          this.prepareTour();
+          this.tour.currentStep = 0;
+          this.highlightCurrentArtifact();
+        }
       });
-      
+
+      // Fullscreen 3D controls - FIXED
+      document.getElementById('closeFullscreenBtn').addEventListener('click', () => this.closeFullscreen3D());
+      document.getElementById('fullscreenRotateBtn').addEventListener('click', () => this.toggleFullscreenRotation());
+      document.getElementById('fullscreenArBtn').addEventListener('click', () => this.openArFromFullscreen());
+      document.getElementById('fullscreenResetBtn').addEventListener('click', () => this.resetFullscreenView());
+
+      // AR controls - FIXED
+      document.getElementById('closeArBtn').addEventListener('click', () => this.closeArOverlay());
+      document.getElementById('placeArBtn').addEventListener('click', () => this.placeInAR());
+
+      // Details panel controls - FIXED
+      this.setupDetailsPanelControls();
+
       // Keyboard shortcuts
       document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
-      
-      // Details panel controls
-      this.setupDetailsPanelControls();
-      
-      // AR controls
-      this.setupARControls();
+      document.getElementById('startExperienceBtn')
+  ?.addEventListener('click', () => {
+    document.getElementById('museumGrid')
+      .scrollIntoView({ behavior: 'smooth' });
+  });
+
+document.getElementById('startTourHeroBtn')
+  ?.addEventListener('click', () => {
+    this.startAdvancedTour();
+  });
+
+  document.querySelectorAll('.featured-card').forEach(card => {
+  card.addEventListener('click', () => {
+    const artifactId = card.dataset.id;
+    this.openDetails(artifactId);
+  });
+});
+
+
+  document.querySelectorAll('.era-card').forEach(card => {
+  card.addEventListener('click', () => {
+    const era = card.dataset.era;
+
+    // Trigger existing filter button
+    const filterBtn = document.querySelector(
+      `.filter-tag[data-filter="${era}"]`
+    );
+
+    if (filterBtn) {
+      filterBtn.click();
     }
 
-    handleArtifactClick(event, artifact) {
-      event.preventDefault();
-      event.stopPropagation();
-      
-      if (event.target.closest('.explore-btn')) {
-        this.openDetails(artifact.dataset.id);
-      } else if (event.target.closest('.view-3d')) {
-        this.openFullscreen3D(artifact);
-      } else if (event.target.closest('.preview-btn')) {
-        this.showQuickPreview(artifact.dataset.id);
-      } else {
-        this.openDetails(artifact.dataset.id);
+    // Scroll to museum grid
+    document.getElementById('museumGrid')
+      .scrollIntoView({ behavior: 'smooth' });
+
+    this.showNotification(
+      `Entering ${era.charAt(0).toUpperCase() + era.slice(1)} Era`,
+      'Museum'
+    );
+  });
+});
+const clickSound = document.getElementById('uiClickSound');
+
+document.querySelectorAll('button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (clickSound) {
+      clickSound.volume = 0.05;
+      clickSound.currentTime = 0;
+      clickSound.play().catch(() => {});
+    }
+  });
+});
+
+
+    }
+
+    // FIXED: Virtual Guide Functions
+    showVirtualGuide() {
+      const guideShown = localStorage.getItem('guideShown');
+      if (!guideShown && this.elements.virtualGuide) {
+        this.elements.virtualGuide.classList.add('active');
+        this.updateGuideMessage('Hello! I\'m your virtual guide. I\'ll help you explore the museum. Click "Start Tour" for a guided experience or "Skip Tour" to explore on your own.');
       }
     }
 
-    openDetails(artifactId) {
-      const artifact = document.querySelector(`[data-id="${artifactId}"]`);
-      if (!artifact) return;
-
-      this.markAsViewed(artifactId);
-      this.currentArtifact = artifact;
-      this.currentArtifactId = artifactId;
-
-      this.updateDetailsPanel(artifact);
-      this.showDetailsPanel();
-      this.logArtifactVisit(artifactId);
-    }
-
-    markAsViewed(artifactId) {
-      if (!this.viewedArtifacts.has(artifactId)) {
-        this.viewedArtifacts.add(artifactId);
-        this.updateProgress();
-        this.saveProgress();
-        this.showNotification('✨ New artifact discovered!', 'Discovery');
+    hideVirtualGuide() {
+      if (this.elements.virtualGuide) {
+        this.elements.virtualGuide.classList.remove('active');
+        localStorage.setItem('guideShown', 'true');
+        this.showNotification('Guide hidden. You can restart it anytime.', 'Info');
       }
     }
 
-    updateProgress() {
-      const viewedCount = document.getElementById('viewedCount');
-      const progressFill = document.querySelector('.progress-fill');
-      
-      if (viewedCount) {
-        viewedCount.textContent = this.viewedArtifacts.size;
-      }
-      
-      if (progressFill) {
-        const percentage = (this.viewedArtifacts.size / this.artifacts.length) * 100;
-        progressFill.style.width = `${percentage}%`;
+    updateGuideMessage(message) {
+      const guideMessage = document.getElementById('guideMessage');
+      if (guideMessage) {
+        guideMessage.textContent = message;
       }
     }
+    animateHero() {
+  const animatedEls = document.querySelectorAll('.hero-anim');
 
-    loadProgress() {
-      const savedViews = JSON.parse(localStorage.getItem('viewedArtifacts') || '[]');
-      savedViews.forEach(id => this.viewedArtifacts.add(id));
-      this.updateProgress();
+  animatedEls.forEach(el => {
+    requestAnimationFrame(() => {
+      el.classList.add('show');
+    });
+  });
+}
+
+
+    initBubbleBackground() {
+  const bubbleBg = document.getElementById('bubbleBg');
+  if (!bubbleBg) return;
+
+  const bubbleCount = 140;
+
+  for (let i = 0; i < bubbleCount; i++) {
+    const bubble = document.createElement('span');
+
+    bubble.style.left = Math.random() * 100 + '%';
+
+    bubble.style.setProperty('--size', Math.random());
+    bubble.style.setProperty('--speed', Math.random());
+    bubble.style.setProperty('--delay', Math.random() * 30);
+    bubble.style.setProperty('--blur', Math.random() * 2);
+
+    bubble.style.setProperty('--x1', `${Math.random() * 80 - 40}px`);
+    bubble.style.setProperty('--x2', `${Math.random() * 160 - 80}px`);
+    bubble.style.setProperty('--x3', `${Math.random() * 260 - 130}px`);
+
+    bubbleBg.appendChild(bubble);
+  }
+}
+
+    // FIXED: List View Functions
+    setGridView() {
+      this.elements.museumGrid.classList.remove('list-view');
+      document.querySelectorAll('.view-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById('gridView').classList.add('active');
+      this.showNotification('Grid view activated', 'View');
     }
 
-    saveProgress() {
-      const viewedArray = Array.from(this.viewedArtifacts);
-      localStorage.setItem('viewedArtifacts', JSON.stringify(viewedArray));
+    setListView() {
+      this.elements.museumGrid.classList.add('list-view');
+      document.querySelectorAll('.view-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById('listView').classList.add('active');
+      this.showNotification('List view activated', 'View');
     }
 
-    showGuide() {
-      if (this.guideVisible) {
-        this.elements.virtualGuide.style.display = 'block';
-        setTimeout(() => {
-          this.elements.virtualGuide.style.opacity = '1';
-        }, 100);
-      }
-    }
+   filterArtifacts(filter, button) {
+  // active button
+  document.querySelectorAll('.filter-tag').forEach(t =>
+    t.classList.remove('active')
+  );
+  button.classList.add('active');
 
-    hideGuide() {
-      this.elements.virtualGuide.style.opacity = '0';
+  // ===== THEME SWITCH (COLOR ONLY) =====
+  document.body.classList.remove(
+    'theme-all',
+    'theme-ancient',
+    'theme-medieval',
+    'theme-modern',
+    'theme-futuristic'
+  );
+
+  document.body.classList.add(`theme-${filter}`);
+
+  // ===== FILTER LOGIC (UNCHANGED) =====
+  this.artifacts.forEach(artifact => {
+    if (filter === 'all' || artifact.dataset.category === filter) {
+      artifact.style.display = '';
+      artifact.style.opacity = '1';
+      artifact.style.transform = 'translateY(0)';
+    } else {
+      artifact.style.opacity = '0';
+      artifact.style.transform = 'translateY(20px)';
       setTimeout(() => {
-        this.elements.virtualGuide.style.display = 'none';
+        artifact.style.display = 'none';
       }, 300);
     }
+  });
+  // 🎧 Ambient sound change
+if (filter !== 'all') {
+  this.playAmbient(filter);
+} else if (this.ambientAudio) {
+  this.fadeOutAudio(this.ambientAudio);
+  this.ambientAudio = null;
+}
 
-    handleGuideAction(action) {
-      switch(action) {
-        case 'startTour':
-          this.startAdvancedTour();
-          break;
-        case 'skipTour':
-          this.hideGuide();
-          this.showNotification('Tour skipped. Explore freely!', 'Info');
-          break;
-        case 'customTour':
-          this.openCustomTourModal();
-          break;
-      }
-    }
+}
 
-    // Advanced Tour Functions
-    getTourData() {
-      return [
-        { id: 1, duration: 5, highlight: 'ancient' },
-        { id: 2, duration: 4, highlight: 'medieval' },
-        { id: 3, duration: 6, highlight: 'ancient' },
-        { id: 4, duration: 4, highlight: 'medieval' },
-        { id: 5, duration: 3, highlight: 'ancient' },
-        { id: 6, duration: 4, highlight: 'medieval' },
-        { id: 7, duration: 5, highlight: 'ancient' },
-        { id: 8, duration: 4, highlight: 'medieval' },
-        { id: 9, duration: 6, highlight: 'ancient' },
-        { id: 10, duration: 3, highlight: 'modern' },
-        { id: 11, duration: 3, highlight: 'modern' },
-        { id: 12, duration: 4, highlight: 'modern' },
-        { id: 13, duration: 5, highlight: 'futuristic' },
-        { id: 14, duration: 4, highlight: 'futuristic' },
-        { id: 15, duration: 5, highlight: 'futuristic' },
-        { id: 16, duration: 6, highlight: 'futuristic' }
-      ];
-    }
 
+
+    // FIXED: Advanced Tour Functions
     prepareTour() {
       let tourSteps = [...this.artifacts];
       
@@ -288,21 +844,17 @@ document.addEventListener('DOMContentLoaded', function() {
           
         case 'chronological':
           tourSteps.sort((a, b) => {
-            const eraA = parseInt(a.dataset.era.replace(/[^0-9-]/g, ''));
-            const eraB = parseInt(b.dataset.era.replace(/[^0-9-]/g, ''));
-            return eraA - eraB;
+            const getYear = (era) => {
+              const match = era.match(/-?\d+/);
+              return match ? parseInt(match[0]) : 0;
+            };
+            return getYear(a.dataset.era) - getYear(b.dataset.era);
           });
           break;
           
         case 'popular':
-          // Simulate popularity based on views
           const visits = JSON.parse(localStorage.getItem('artifactVisits') || '{}');
           tourSteps.sort((a, b) => (visits[b.dataset.id] || 0) - (visits[a.dataset.id] || 0));
-          break;
-          
-        case 'interactive':
-          // Random order for interactive tour
-          tourSteps = tourSteps.sort(() => Math.random() - 0.5);
           break;
       }
       
@@ -311,19 +863,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     startAdvancedTour() {
-      this.hideGuide();
+      this.hideVirtualGuide();
       this.prepareTour();
       this.tour.active = true;
       this.tour.paused = false;
       
-      this.elements.advancedTourControls.style.display = 'block';
-      setTimeout(() => {
-        this.elements.advancedTourControls.style.opacity = '1';
-      }, 100);
+      this.elements.advancedTourControls.classList.add('active');
       
       this.showNotification('🚀 Starting advanced tour...', 'Tour Started');
       this.highlightCurrentArtifact();
       this.startTourTimer();
+      this.updateGuideMessage('Tour started! Enjoy the guided exploration.');
     }
 
     startTourTimer() {
@@ -331,7 +881,7 @@ document.addEventListener('DOMContentLoaded', function() {
         clearInterval(this.tour.interval);
       }
       
-      const stepDuration = 10000 / this.tour.speed; // 10 seconds per step adjusted for speed
+      const stepDuration = 10000 / this.tour.speed;
       
       this.tour.interval = setInterval(() => {
         if (!this.tour.paused && this.tour.active) {
@@ -341,29 +891,38 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     nextTourStep() {
-      if (!this.tour.active) return;
+      if (!this.tour.active || this.tour.currentStep >= this.tour.steps.length) {
+        this.stopTour();
+        this.showNotification('🎉 Tour completed! Well done!', 'Tour Complete');
+        this.updateGuideMessage('Tour completed! Feel free to explore more artifacts.');
+        return;
+      }
       
-      // Remove highlight from previous artifact
+      // Remove highlight from previous
       if (this.tour.currentStep > 0) {
         const prevArtifact = this.tour.steps[this.tour.currentStep - 1];
         if (prevArtifact) prevArtifact.classList.remove('tour-active');
       }
       
+      const currentArtifact = this.tour.steps[this.tour.currentStep];
+      this.openDetails(currentArtifact.dataset.id);
+      this.highlightCurrentArtifact();
+      this.updateTourUI();
+      
+      this.tour.currentStep++;
+      
+      // Update guide message
       if (this.tour.currentStep < this.tour.steps.length) {
-        const currentArtifact = this.tour.steps[this.tour.currentStep];
-        this.openDetails(currentArtifact.dataset.id);
-        this.highlightCurrentArtifact();
-        this.updateTourUI();
-        this.tour.currentStep++;
-      } else {
-        this.stopTour();
-        this.showNotification('🎉 Tour completed! Well done!', 'Tour Complete');
+        const nextArtifact = this.tour.steps[this.tour.currentStep];
+        if (nextArtifact) {
+          this.updateGuideMessage(`Now viewing: ${currentArtifact.dataset.title}. Next: ${nextArtifact.dataset.title}`);
+        }
       }
     }
 
     prevTourStep() {
       if (this.tour.currentStep > 1) {
-        // Remove highlight from current
+        // Remove current highlight
         const currentArtifact = this.tour.steps[this.tour.currentStep - 1];
         if (currentArtifact) currentArtifact.classList.remove('tour-active');
         
@@ -384,6 +943,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
     }
+bindDetailSaveButton() {
+  const btn = document.getElementById('detailSaveBtn');
+  if (!btn) return;
+
+  btn.addEventListener('click', () => {
+    if (!this.currentArtifactId) return;
+    this.saveToLibrary(this.currentArtifactId);
+  });
+}
 
     updateTourUI() {
       const stepElement = document.getElementById('tourStep');
@@ -396,8 +964,8 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       
       if (progressFill) {
-        const progress = ((this.tour.currentStep + 1) / this.tour.steps.length) * 100;
         const circumference = 2 * Math.PI * 18;
+        const progress = ((this.tour.currentStep + 1) / this.tour.steps.length) * 100;
         const offset = circumference - (progress / 100) * circumference;
         progressFill.style.strokeDashoffset = offset;
       }
@@ -405,13 +973,13 @@ document.addEventListener('DOMContentLoaded', function() {
       if (this.tour.currentStep < this.tour.steps.length) {
         const artifact = this.tour.steps[this.tour.currentStep];
         if (titleElement) titleElement.textContent = artifact.dataset.title;
-        if (descElement) descElement.textContent = `Exploring ${artifact.dataset.category} artifact from ${artifact.dataset.era}`;
+        if (descElement) descElement.textContent = `${artifact.dataset.category} • ${artifact.dataset.era} • ${artifact.dataset.location}`;
       }
     }
 
     toggleTourPlayPause() {
       this.tour.paused = !this.tour.paused;
-      const button = document.getElementById('tourPlayPause');
+      const button = document.getElementById('tourPlayPauseBtn');
       if (button) {
         button.innerHTML = this.tour.paused ? 
           '<i class="fas fa-play"></i>' : 
@@ -447,88 +1015,200 @@ document.addEventListener('DOMContentLoaded', function() {
         card.classList.remove('tour-active');
       });
       
-      this.elements.advancedTourControls.style.opacity = '0';
-      setTimeout(() => {
-        this.elements.advancedTourControls.style.display = 'none';
-      }, 300);
+      // Hide tour controls
+      this.elements.advancedTourControls.classList.remove('active');
+      
+      this.updateGuideMessage('Tour stopped. You can explore freely or start a new tour.');
     }
 
-    // Theme and Music Functions
-    toggleTheme() {
-      document.body.classList.toggle('light-theme');
-      const icon = this.elements.themeBtn.querySelector('i');
+    // FIXED: Fullscreen 3D Functions
+    openFullscreen3D(artifact) {
+      if (!artifact || !this.elements.fullscreen3DOverlay) return;
       
-      if (document.body.classList.contains('light-theme')) {
-        icon.className = 'fas fa-sun';
-        this.showNotification('Light theme activated ☀️', 'Theme Changed');
-      } else {
-        icon.className = 'fas fa-moon';
-        this.showNotification('Dark theme activated 🌙', 'Theme Changed');
+      const viewer = document.getElementById('fullscreenModelViewer');
+      const title = document.getElementById('fullscreenTitle');
+      
+      title.textContent = artifact.dataset.title;
+      const modelSrc = artifact.querySelector('model-viewer')?.src;
+      if (modelSrc && viewer) {
+        viewer.src = modelSrc;
+        viewer.autoRotate = true;
+        viewer.cameraOrbit = '0deg 75deg 105%';
       }
-    }
-
-    toggleMusic() {
-      const icon = this.elements.musicBtn.querySelector('i');
       
-      if (this.elements.backgroundMusic.paused) {
-        this.elements.backgroundMusic.play().catch(e => console.log('Audio play failed:', e));
-        icon.className = 'fas fa-volume-up';
-        this.showNotification('Background music playing 🎵', 'Music');
-      } else {
-        this.elements.backgroundMusic.pause();
-        icon.className = 'fas fa-volume-mute';
-        this.showNotification('Background music paused', 'Music');
-      }
+      this.elements.fullscreen3DOverlay.classList.add('active');
+      document.body.style.overflow = 'hidden';
     }
 
-    setupBackgroundMusic() {
-      // Set volume and preload
-      this.elements.backgroundMusic.volume = 0.3;
-      this.elements.backgroundMusic.preload = 'auto';
-    }
-
-    // View and Filter Functions
-    setGridView() {
-      this.elements.museumGrid.classList.remove('list-view');
-      this.updateViewButtons('grid');
-      this.showNotification('Grid view activated', 'View');
-    }
-
-    setListView() {
-      this.elements.museumGrid.classList.add('list-view');
-      this.updateViewButtons('list');
-      this.showNotification('List view activated', 'View');
-    }
-
-    updateViewButtons(activeView) {
-      document.querySelectorAll('.view-btn').forEach(btn => btn.classList.remove('active'));
-      document.getElementById(`${activeView}View`).classList.add('active');
-    }
-
-    filterArtifacts(filter, button) {
-      document.querySelectorAll('.filter-tag').forEach(t => t.classList.remove('active'));
-      button.classList.add('active');
-      
-      this.artifacts.forEach(artifact => {
-        if (filter === 'all' || artifact.dataset.category === filter) {
-          artifact.style.display = 'block';
-          setTimeout(() => {
-            artifact.style.opacity = '1';
-            artifact.style.transform = 'translateY(0)';
-          }, 10);
-        } else {
-          artifact.style.opacity = '0';
-          artifact.style.transform = 'translateY(20px)';
-          setTimeout(() => {
-            artifact.style.display = 'none';
-          }, 300);
+    closeFullscreen3D() {
+      if (this.elements.fullscreen3DOverlay) {
+        this.elements.fullscreen3DOverlay.classList.remove('active');
+        document.body.style.overflow = '';
+        
+        const viewer = document.getElementById('fullscreenModelViewer');
+        if (viewer) {
+          viewer.autoRotate = false;
         }
-      });
-      
-      this.showNotification(`Showing ${filter} artifacts`, 'Filter');
+      }
     }
 
-    // Details Panel Functions
+    toggleFullscreenRotation() {
+      const viewer = document.getElementById('fullscreenModelViewer');
+      if (viewer) {
+        viewer.autoRotate = !viewer.autoRotate;
+        this.showNotification(
+          viewer.autoRotate ? 'Auto-rotation enabled' : 'Auto-rotation disabled',
+          '3D Controls'
+        );
+      }
+    }
+
+   openArFromFullscreen() {
+  const viewer = document.getElementById('fullscreenModelViewer');
+
+  if (!viewer || !viewer.canActivateAR) {
+    this.showNotification(
+      'AR not supported on this device',
+      'AR'
+    );
+    return;
+  }
+
+  try {
+    viewer.activateAR();
+  } catch (e) {
+    console.error(e);
+    this.showNotification(
+      'Unable to launch AR',
+      'AR'
+    );
+  }
+}
+
+
+    resetFullscreenView() {
+      const viewer = document.getElementById('fullscreenModelViewer');
+      if (viewer) {
+        viewer.cameraOrbit = '0deg 75deg 105%';
+        this.showNotification('View reset', '3D Controls');
+      }
+    }
+
+    // FIXED: AR Functions
+    openArOverlay() {
+      if (this.elements.arOverlay) {
+        this.elements.arOverlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      }
+    }
+bindAROverlayControls() {
+  document
+    .getElementById('closeArBtn')
+    ?.addEventListener('click', () =>
+      this.closeArOverlay()
+    );
+
+  document
+    .getElementById('placeArBtn')
+    ?.addEventListener('click', () =>
+      this.placeInAR()
+    );
+}
+
+    closeArOverlay() {
+      if (this.elements.arOverlay) {
+        this.elements.arOverlay.classList.remove('active');
+        document.body.style.overflow = '';
+      }
+    }
+   stopAudio(resetUI = true) {
+  if (!this.audio) return;
+
+  this.audio.pause();
+  this.audio.currentTime = 0;
+  this.audio = null;
+  this.isPlaying = false;
+
+  clearInterval(this.audioProgressInterval);
+
+  if (resetUI) {
+    document.getElementById('audioProgress').value = 0;
+    document.getElementById('audioTime').textContent = '0:00 / 0:00';
+
+    const btn = document.getElementById('playAudio');
+    if (btn) {
+      btn.innerHTML =
+        '<i class="fas fa-play"></i><span>Audio Guide</span>';
+    }
+  }
+}
+
+bindARButtons() {
+  const arBtn = document.getElementById('arBtn');
+  const fullscreenArBtn = document.getElementById('fullscreenArBtn');
+
+  if (arBtn) {
+    arBtn.addEventListener('click', () => {
+      this.openArOverlay();
+    });
+  }
+
+  if (fullscreenArBtn) {
+    fullscreenArBtn.addEventListener('click', () => {
+      this.openArFromFullscreen();
+    });
+  }
+}
+
+
+    placeInAR() {
+  const modelViewer = document.getElementById('detailModelViewer');
+
+  if (!modelViewer) {
+    this.showNotification('3D model not found', 'AR');
+    return;
+  }
+
+  // Safety check
+  if (!modelViewer.canActivateAR) {
+    this.showNotification(
+      'AR not supported on this device',
+      'AR'
+    );
+    return;
+  }
+
+  try {
+    modelViewer.activateAR();
+    this.closeArOverlay();
+  } catch (error) {
+    console.error(error);
+    this.showNotification(
+      'Failed to start AR',
+      'AR'
+    );
+  }
+}
+
+
+    // FIXED: Details Panel Functions
+    openDetails(artifactId) {
+  const artifact = document.querySelector(`[data-id="${artifactId}"]`);
+  if (!artifact) return;
+
+  // ✅ THIS IS THE KEY FIX
+  this.currentArtifact = artifact;
+  this.currentArtifactId = artifactId;
+
+  this.markAsViewed(artifactId);
+  this.updateDetailsPanel(artifact);
+  this.showDetailsPanel();
+  this.logArtifactVisit(artifactId);
+  this.zoomLevel = 1;
+  this.applyZoom();
+}
+
+
     updateDetailsPanel(artifact) {
       // Update text content
       document.getElementById('detailTitle').textContent = artifact.dataset.title;
@@ -536,60 +1216,45 @@ document.addEventListener('DOMContentLoaded', function() {
       document.getElementById('detailDescription').textContent = artifact.dataset.desc;
       document.getElementById('detailLocation').textContent = artifact.dataset.location;
       document.getElementById('detailCategory').textContent = artifact.dataset.category;
-      
+
       // Update 3D model
-      const modelSrc = artifact.querySelector('model-viewer').src;
+      const modelSrc = artifact.querySelector('model-viewer')?.src;
       const detailModelViewer = document.getElementById('detailModelViewer');
-      if (detailModelViewer) {
+      if (detailModelViewer && modelSrc) {
         detailModelViewer.src = modelSrc;
+        detailModelViewer.cameraOrbit = '0deg 75deg 105%';
+        detailModelViewer.autoRotate = true;
       }
-      
-      // Update audio
-      const audioSrc = artifact.dataset.audio;
-      if (this.audio) {
-        this.audio.pause();
-        this.isPlaying = false;
-        const playButton = document.getElementById('playAudio');
-        if (playButton) {
-          playButton.innerHTML = '<i class="fas fa-play"></i><span>Audio Guide</span>';
-        }
-      }
-      this.audio = new Audio(audioSrc);
-      this.setupAudioControls();
-      
+
       // Update specifications
       this.updateSpecifications(artifact);
     }
 
     showDetailsPanel() {
-      this.elements.detailsOverlay.style.display = 'block';
-      setTimeout(() => {
-        this.elements.detailsOverlay.style.opacity = '1';
-      }, 10);
+      if (!this.elements.detailsOverlay) return;
+      
+      this.elements.detailsOverlay.classList.add('active');
       document.body.style.overflow = 'hidden';
     }
 
-    closeDetails() {
-      this.elements.detailsOverlay.style.opacity = '0';
-      setTimeout(() => {
-        this.elements.detailsOverlay.style.display = 'none';
-      }, 300);
-      document.body.style.overflow = '';
-      
-      if (this.audio && !this.audio.paused) {
-        this.audio.pause();
-        this.isPlaying = false;
-      }
-      
-      this.currentArtifact = null;
-      this.currentArtifactId = null;
-    }
 
     setupDetailsPanelControls() {
+        document.getElementById('audioProgress').addEventListener('input', (e) => {
+  if (!this.audio || !this.audio.duration) return;
+
+  const percent = e.target.value;
+  this.audio.currentTime =
+    (percent / 100) * this.audio.duration;
+});
+
+        document.getElementById('playAudio').addEventListener('click', () => {
+  this.toggleArtifactAudio();
+});
+
       // Close button
       document.getElementById('closeDetailsBtn').addEventListener('click', () => this.closeDetails());
       
-      // Navigation arrows
+      // Navigation arrows - FIXED
       document.getElementById('nextArtifact').addEventListener('click', () => this.navigateNext());
       document.getElementById('prevArtifact').addEventListener('click', () => this.navigatePrev());
       
@@ -597,89 +1262,16 @@ document.addEventListener('DOMContentLoaded', function() {
       document.getElementById('rotateBtn').addEventListener('click', () => this.toggleAutoRotate());
       document.getElementById('zoomInBtn').addEventListener('click', () => this.zoomIn());
       document.getElementById('zoomOutBtn').addEventListener('click', () => this.zoomOut());
-      document.getElementById('arBtn').addEventListener('click', () => this.openARMode());
+      document.getElementById('arBtn').addEventListener('click', () => this.openArOverlay());
       
-      // Audio controls
-      document.getElementById('playAudio').addEventListener('click', () => this.toggleAudio());
-      document.getElementById('audioProgress').addEventListener('input', (e) => this.seekAudio(e));
-    }
-
-    navigateNext() {
-      if (!this.currentArtifactId) return;
-      const currentId = parseInt(this.currentArtifactId);
-      const nextId = currentId < this.artifacts.length ? currentId + 1 : 1;
-      this.openDetails(nextId);
-    }
-
-    navigatePrev() {
-      if (!this.currentArtifactId) return;
-      const currentId = parseInt(this.currentArtifactId);
-      const prevId = currentId > 1 ? currentId - 1 : this.artifacts.length;
-      this.openDetails(prevId);
-    }
-
-    // Audio Functions
-    toggleAudio() {
-      if (!this.audio) return;
-      
-      const playButton = document.getElementById('playAudio');
-      
-      if (this.isPlaying) {
-        this.audio.pause();
-        this.isPlaying = false;
-        if (playButton) {
-          playButton.innerHTML = '<i class="fas fa-play"></i><span>Audio Guide</span>';
-        }
-      } else {
-        this.audio.play().catch(e => {
-          console.log('Audio play failed:', e);
-          this.showNotification('Audio guide unavailable', 'Audio');
-        });
-        this.isPlaying = true;
-        if (playButton) {
-          playButton.innerHTML = '<i class="fas fa-pause"></i><span>Pause Guide</span>';
-        }
-      }
-    }
-
-    setupAudioControls() {
-      if (!this.audio) return;
-      
-      this.audio.addEventListener('timeupdate', () => this.updateAudioProgress());
-      this.audio.addEventListener('ended', () => {
-        this.isPlaying = false;
-        const playButton = document.getElementById('playAudio');
-        if (playButton) {
-          playButton.innerHTML = '<i class="fas fa-play"></i><span>Audio Guide</span>';
+      // Click outside to close
+      this.elements.detailsOverlay.addEventListener('click', (e) => {
+        if (e.target === this.elements.detailsOverlay) {
+          this.closeDetails();
         }
       });
     }
 
-    updateAudioProgress() {
-      const progress = document.getElementById('audioProgress');
-      const time = document.getElementById('audioTime');
-      
-      if (progress && time && this.audio) {
-        const currentTime = this.audio.currentTime;
-        const duration = this.audio.duration;
-        progress.value = (currentTime / duration) * 100 || 0;
-        
-        const formatTime = (seconds) => {
-          const mins = Math.floor(seconds / 60);
-          const secs = Math.floor(seconds % 60);
-          return `${mins}:${secs.toString().padStart(2, '0')}`;
-        };
-        
-        time.textContent = `${formatTime(currentTime)} / ${formatTime(duration)}`;
-      }
-    }
-
-    seekAudio(event) {
-      if (!this.audio) return;
-      this.audio.currentTime = (event.target.value / 100) * this.audio.duration;
-    }
-
-    // 3D Model Functions
     toggleAutoRotate() {
       const modelViewer = document.getElementById('detailModelViewer');
       if (modelViewer) {
@@ -690,6 +1282,55 @@ document.addEventListener('DOMContentLoaded', function() {
         );
       }
     }
+toggleArtifactAudio() {
+  // Pause ambient sound while guide audio plays
+if (this.ambientAudio) {
+  this.fadeOutAudio(this.ambientAudio);
+}
+
+  if (!this.currentArtifact) {
+    this.showNotification('Select an artifact first', 'Audio');
+    return;
+  }
+
+  // PAUSE
+  if (this.audio && this.isPlaying) {
+    this.audio.pause();
+    this.isPlaying = false;
+    clearInterval(this.audioProgressInterval);
+
+    document.getElementById('playAudio').innerHTML =
+      '<i class="fas fa-play"></i><span>Audio Guide</span>';
+    return;
+  }
+
+  const audioSrc = this.currentArtifact.dataset.audio;
+  if (!audioSrc) {
+    this.showNotification('No audio available', 'Audio');
+    return;
+  }
+
+  // STOP any old audio
+  this.stopAudio(false);
+
+  this.audio = new Audio(audioSrc);
+  this.audio.volume = 0.8;
+
+  this.audio.play().then(() => {
+    this.isPlaying = true;
+
+    document.getElementById('playAudio').innerHTML =
+      '<i class="fas fa-pause"></i><span>Pause</span>';
+
+    this.startAudioProgressTracking();
+  }).catch(() => {
+    this.showNotification('Click again to enable audio', 'Audio');
+  });
+
+  this.audio.onended = () => this.stopAudio();
+}
+
+
 
     zoomIn() {
       const modelViewer = document.getElementById('detailModelViewer');
@@ -707,68 +1348,113 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
 
-    openFullscreen3D(artifact) {
-      const fullscreenOverlay = document.getElementById('fullscreen3DOverlay');
-      const fullscreenViewer = document.getElementById('fullscreenModelViewer');
-      const title = document.getElementById('fullscreenTitle');
-      
-      if (fullscreenOverlay && fullscreenViewer && title) {
-        title.textContent = artifact.dataset.title;
-        fullscreenViewer.src = artifact.querySelector('model-viewer').src;
-        
-        fullscreenOverlay.style.display = 'block';
-        setTimeout(() => {
-          fullscreenOverlay.style.opacity = '1';
-        }, 10);
-        
-        document.body.style.overflow = 'hidden';
-        this.isFullscreen = true;
-      }
-    }
+  navigateNext() {
+  this.stopAudio();
+  this.openDetails(Number(this.currentArtifactId) + 1);
+}
 
-    // AR Functions
-    setupARControls() {
-      document.getElementById('closeArBtn')?.addEventListener('click', () => {
-        const arOverlay = document.getElementById('arOverlay');
-        if (arOverlay) {
-          arOverlay.style.opacity = '0';
-          setTimeout(() => {
-            arOverlay.style.display = 'none';
-          }, 300);
-        }
-      });
-      
-      document.getElementById('placeArBtn')?.addEventListener('click', () => this.placeInAR());
-    }
+navigatePrev() {
+  this.stopAudio();
+  this.openDetails(Number(this.currentArtifactId) - 1);
+}
 
-    openARMode() {
-      if (!this.currentArtifact) return;
-      
-      const arOverlay = document.getElementById('arOverlay');
-      if (arOverlay) {
-        arOverlay.style.display = 'block';
-        setTimeout(() => {
-          arOverlay.style.opacity = '1';
-        }, 10);
-        this.showNotification('AR Mode: Point camera at a flat surface', 'AR');
-      }
-    }
 
-    placeInAR() {
-      if (!this.currentArtifact) return;
-      
-      const modelViewer = document.getElementById('detailModelViewer');
-      if (modelViewer && modelViewer.activateAR) {
-        try {
-          modelViewer.activateAR();
-          this.showNotification('Tap on screen to place artifact', 'AR');
-        } catch (e) {
-          this.showNotification('AR not supported on this device', 'AR');
-        }
-      }
-    }
+closeDetails() {
+  this.stopAudio();
+  this.elements.detailsOverlay.classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+startAudioProgressTracking() {
+  const progress = document.getElementById('audioProgress');
+  const timeText = document.getElementById('audioTime');
+
+  this.audioProgressInterval = setInterval(() => {
+    if (!this.audio || !this.audio.duration) return;
+
+    const percent =
+      (this.audio.currentTime / this.audio.duration) * 100;
+
+    progress.value = percent;
+
+    timeText.textContent =
+      `${this.formatTime(this.audio.currentTime)} / ${this.formatTime(this.audio.duration)}`;
+  }, 500);
+}
+
+
 
     // Utility Functions
+   markAsViewed(artifactId) {
+  if (!this.viewedArtifacts.has(artifactId)) {
+    this.viewedArtifacts.add(artifactId);
+
+    const card = document.querySelector(`[data-id="${artifactId}"]`);
+    if (card) card.classList.add('viewed');
+
+    this.updateProgress();
+    this.saveProgress();
+    this.showNotification('✨ New artifact discovered!', 'Discovery');
+  }
+}
+
+    formatTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
+}
+
+
+    updateProgress() {
+      const viewedCount = document.getElementById('viewedCount');
+      const progressFill = document.querySelector('.progress-fill');
+      
+      if (viewedCount) {
+        viewedCount.textContent = this.viewedArtifacts.size;
+      }
+      
+      if (progressFill) {
+        const percentage = (this.viewedArtifacts.size / this.artifacts.length) * 100;
+        progressFill.style.width = `${percentage}%`;
+      }
+    }
+
+    loadProgress() {
+      const savedViews = JSON.parse(localStorage.getItem('viewedArtifacts') || '[]');
+      savedViews.forEach(id => this.viewedArtifacts.add(id));
+      this.updateProgress();
+    }
+
+    saveProgress() {
+      const viewedArray = Array.from(this.viewedArtifacts);
+      localStorage.setItem('viewedArtifacts', JSON.stringify(viewedArray));
+    }
+    startHeroSubtitleRotation() {
+  const subtitleEl = document.getElementById('heroSubtitle');
+  if (!subtitleEl) return;
+
+  setInterval(() => {
+    subtitleEl.classList.add('fade-out');
+
+    setTimeout(() => {
+      this.currentSubtitleIndex =
+        (this.currentSubtitleIndex + 1) % this.heroSubtitles.length;
+
+      subtitleEl.textContent =
+        this.heroSubtitles[this.currentSubtitleIndex];
+
+      subtitleEl.classList.remove('fade-out');
+    }, 600);
+  }, 3500);
+}
+
+
+    logArtifactVisit(artifactId) {
+      const visits = JSON.parse(localStorage.getItem('artifactVisits') || '{}');
+      visits[artifactId] = (visits[artifactId] || 0) + 1;
+      localStorage.setItem('artifactVisits', JSON.stringify(visits));
+    }
+
     updateSpecifications(artifact) {
       const specs = {
         ancient: {
@@ -808,42 +1494,16 @@ document.addEventListener('DOMContentLoaded', function() {
       document.getElementById('specCondition').textContent = randomItem(spec.condition);
     }
 
-    logArtifactVisit(artifactId) {
-      const visits = JSON.parse(localStorage.getItem('artifactVisits') || '{}');
-      visits[artifactId] = (visits[artifactId] || 0) + 1;
-      localStorage.setItem('artifactVisits', JSON.stringify(visits));
-    }
-
-    showQuickPreview(artifactId) {
-      const artifact = document.querySelector(`[data-id="${artifactId}"]`);
-      if (!artifact) return;
-      
-      this.showNotification(`Previewing: ${artifact.dataset.title}`, 'Preview');
+    showCustomTourModal() {
+      this.showNotification('Custom tour creator coming soon!', 'Feature');
     }
 
     showNotification(message, title = 'Notification') {
-      // Create enhanced notification
-      const notification = document.createElement('div');
-      notification.className = 'enhanced-notification';
-      notification.innerHTML = `
-        <div class="notification-header">
-          <i class="fas fa-info-circle"></i>
-          <span class="notification-title">${title}</span>
-        </div>
-        <div class="notification-body">${message}</div>
-      `;
+      this.elements.notificationText.textContent = message;
+      this.elements.notification.style.display = 'flex';
       
-      document.body.appendChild(notification);
-      
-      // Show notification
-      notification.style.display = 'block';
-      
-      // Auto-remove after 3 seconds
       setTimeout(() => {
-        notification.style.opacity = '0';
-        setTimeout(() => {
-          notification.remove();
-        }, 300);
+        this.elements.notification.style.display = 'none';
       }, 3000);
     }
 
@@ -852,135 +1512,36 @@ document.addEventListener('DOMContentLoaded', function() {
       
       switch(e.key) {
         case 'Escape':
-          if (this.isFullscreen) {
-            document.getElementById('closeFullscreenBtn').click();
-          } else if (this.elements.detailsOverlay.style.display === 'block') {
+          if (this.elements.fullscreen3DOverlay.classList.contains('active')) {
+            this.closeFullscreen3D();
+          } else if (this.elements.arOverlay.classList.contains('active')) {
+            this.closeArOverlay();
+          } else if (this.elements.detailsOverlay.classList.contains('active')) {
             this.closeDetails();
           }
           break;
         case 'ArrowRight':
-          if (this.elements.detailsOverlay.style.display === 'block') {
+          if (this.elements.detailsOverlay.classList.contains('active')) {
             this.navigateNext();
           }
           break;
         case 'ArrowLeft':
-          if (this.elements.detailsOverlay.style.display === 'block') {
+          if (this.elements.detailsOverlay.classList.contains('active')) {
             this.navigatePrev();
           }
           break;
-        case ' ':
-          if (this.elements.detailsOverlay.style.display === 'block') {
-            e.preventDefault();
-            this.toggleAudio();
-          }
-          break;
         case 't':
+        case 'T':
           if (!this.tour.active) {
             this.startAdvancedTour();
-          }
-          break;
-        case 'h':
-          this.guideVisible = !this.guideVisible;
-          if (this.guideVisible) {
-            this.showGuide();
           } else {
-            this.hideGuide();
+            this.stopTour();
           }
           break;
       }
-    }
-
-    createParticles() {
-      const particlesContainer = document.createElement('div');
-      particlesContainer.className = 'particles';
-      
-      for (let i = 0; i < 50; i++) {
-        const particle = document.createElement('div');
-        particle.className = 'particle';
-        particle.style.left = `${Math.random() * 100}%`;
-        particle.style.animationDelay = `${Math.random() * 20}s`;
-        particle.style.opacity = Math.random() * 0.5 + 0.1;
-        particlesContainer.appendChild(particle);
-      }
-      
-      document.body.appendChild(particlesContainer);
-    }
-
-    setupHotspots() {
-      const hotspots = [
-        { x: 20, y: 30, title: 'Ancient Era', category: 'ancient' },
-        { x: 40, y: 50, title: 'Medieval Collection', category: 'medieval' },
-        { x: 60, y: 40, title: 'Modern Art', category: 'modern' },
-        { x: 80, y: 60, title: 'Future Tech', category: 'futuristic' }
-      ];
-      
-      const container = document.getElementById('hotspotsContainer');
-      if (!container) return;
-      
-      hotspots.forEach(hotspot => {
-        const element = document.createElement('div');
-        element.className = 'hotspot';
-        element.style.left = `${hotspot.x}%`;
-        element.style.top = `${hotspot.y}%`;
-        element.innerHTML = `
-          <div class="hotspot-tooltip">${hotspot.title}</div>
-        `;
-        
-        element.addEventListener('click', () => {
-          this.filterArtifacts(hotspot.category, 
-            document.querySelector(`[data-filter="${hotspot.category}"]`));
-        });
-        
-        container.appendChild(element);
-      });
-    }
-
-    openCustomTourModal() {
-      // This would open a modal for custom tour creation
-      this.showNotification('Custom tour feature coming soon!', 'Feature');
     }
   }
 
   // Initialize the museum
   window.museum = new VirtualMuseum();
-});
-
-// Add enhanced music controls to the DOM
-document.addEventListener('DOMContentLoaded', function() {
-  const musicControls = document.createElement('div');
-  musicControls.className = 'music-controls';
-  musicControls.innerHTML = `
-    <div class="music-control" id="playMusic">
-      <i class="fas fa-play"></i>
-    </div>
-    <div class="music-control" id="volumeUp">
-      <i class="fas fa-volume-up"></i>
-    </div>
-    <div class="music-control" id="volumeDown">
-      <i class="fas fa-volume-down"></i>
-    </div>
-  `;
-  
-  document.body.appendChild(musicControls);
-  
-  // Add music control functionality
-  const bgMusic = document.getElementById('backgroundMusic');
-  
-  document.getElementById('playMusic').addEventListener('click', () => {
-    if (bgMusic.paused) {
-      bgMusic.play();
-      document.getElementById('playMusic').innerHTML = '<i class="fas fa-pause"></i>';
-    } else {
-      bgMusic.pause();
-      document.getElementById('playMusic').innerHTML = '<i class="fas fa-play"></i>';
-    }
-  });
-  
-  document.getElementById('volumeUp').addEventListener('click', () => {
-    if (bgMusic.volume < 1) bgMusic.volume = Math.min(1, bgMusic.volume + 0.1);
-  });
-  
-  document.getElementById('volumeDown').addEventListener('click', () => {
-    if (bgMusic.volume > 0) bgMusic.volume = Math.max(0, bgMusic.volume - 0.1);
-  });
 });
