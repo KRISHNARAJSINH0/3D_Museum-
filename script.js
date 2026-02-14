@@ -68,6 +68,16 @@ this.bindSearchSuggestions();
 this.bindPrintButton();
 this.bindARButtons();
   this.bindAROverlayControls();
+this.isMobile = window.innerWidth <= 768;
+
+if (this.isMobile) {
+  document.body.classList.add('is-mobile');
+}
+if (!/Mobi|Android/i.test(navigator.userAgent)) {
+  document.querySelectorAll('.ar-btn, #arBtn').forEach(btn => {
+    btn.style.display = 'none';
+  });
+}
 
 
 }
@@ -353,43 +363,75 @@ bindAdvancedSearch() {
   category.addEventListener('change', applySearch);
 }
 bindSearchSuggestions() {
-  const input = document.getElementById('searchInput');   // navbar
+  const input = document.getElementById('searchInput');
   const box = document.getElementById('searchSuggestions');
 
   if (!input || !box) return;
 
+  // 🔦 Highlight matched text
+  const highlight = (text, query) => {
+    if (!query) return text;
+    return text.replace(
+      new RegExp(`(${query})`, 'ig'),
+      '<strong>$1</strong>'
+    );
+  };
+
   input.addEventListener('input', () => {
     const query = input.value.trim().toLowerCase();
 
+    // Reset suggestions
     box.innerHTML = '';
     box.classList.remove('active');
 
-    if (query.length < 2) return; // 🔥 helps UX
+    if (query.length === 0) return;
 
-    const matches = this.artifacts
-      .filter(card => {
-        const title = card.dataset.title?.toLowerCase() || '';
-        return title.includes(query);
-      })
-      .slice(0, 6);
+    const exactMatches = [];
+    const startMatches = [];
+    const relatedMatches = [];
 
-    if (!matches.length) return;
+    this.artifacts.forEach(card => {
+      const title = card.dataset.title?.toLowerCase() || '';
 
-    matches.forEach(card => {
+      if (title === query) {
+        exactMatches.push(card);
+      } else if (title.startsWith(query)) {
+        startMatches.push(card);
+      } else if (title.includes(query)) {
+        relatedMatches.push(card);
+      }
+    });
+
+    // Priority order + limit
+    const results = [...exactMatches, ...startMatches, ...relatedMatches].slice(0, 7);
+    if (!results.length) return;
+
+    results.forEach(card => {
       const item = document.createElement('div');
       item.className = 'suggestion-item';
 
       item.innerHTML = `
-        <div class="suggestion-title">${card.dataset.title}</div>
+        <div class="suggestion-title">
+          ${highlight(card.dataset.title, query)}
+        </div>
         <div class="suggestion-meta">
           ${card.dataset.era} • ${card.dataset.location}
         </div>
       `;
 
+      // Click → open artifact
       item.addEventListener('click', () => {
         box.classList.remove('active');
         input.value = card.dataset.title;
+
+        // Open details panel
         this.openDetails(card.dataset.id);
+
+        // Smooth scroll to artifact card
+        card.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
       });
 
       box.appendChild(item);
@@ -398,12 +440,15 @@ bindSearchSuggestions() {
     box.classList.add('active');
   });
 
+  // Close suggestions when clicking outside
   document.addEventListener('click', e => {
     if (!e.target.closest('.search-wrapper')) {
       box.classList.remove('active');
     }
   });
 }
+
+
 bindPrintButton() {
   const btn = document.getElementById('printArtifactBtn');
   if (!btn) return;
@@ -701,13 +746,14 @@ document.getElementById('startTourHeroBtn')
 const clickSound = document.getElementById('uiClickSound');
 
 document.querySelectorAll('button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    if (clickSound) {
-      clickSound.volume = 0.05;
-      clickSound.currentTime = 0;
-      clickSound.play().catch(() => {});
-    }
-  });
+  document.addEventListener('click', e => {
+  if (e.target.closest('button')) {
+    clickSound.volume = 0.05;
+    clickSound.currentTime = 0;
+    clickSound.play().catch(() => {});
+  }
+});
+
 });
 
 
@@ -751,7 +797,8 @@ document.querySelectorAll('button').forEach(btn => {
   const bubbleBg = document.getElementById('bubbleBg');
   if (!bubbleBg) return;
 
-  const bubbleCount = 140;
+  const bubbleCount = this.isMobile ? 40 : 140;
+
 
   for (let i = 0; i < bubbleCount; i++) {
     const bubble = document.createElement('span');
